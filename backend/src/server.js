@@ -7,6 +7,11 @@ import { postsRouter } from "./routes/posts.js";
 const app = express();
 app.use(express.json());
 
+app.use((req, _res, next) => {
+  console.log(`${new Date().toISOString()} ${req.method} ${req.originalUrl} from ${req.ip}`);
+  next();
+});
+
 app.use("/api", pingRouter);
 app.use("/api", postsRouter);
 
