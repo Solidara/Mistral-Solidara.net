@@ -164,8 +164,57 @@ curl -s http://localhost:3000/api/pings
 
 ### Sicherheits-Hinweise
 
-- Der Backend-Port ist bewusst nur auf `127.0.0.1:3000` gebunden (`ports: "127.0.0.1:3000:3000"`), also **nicht** öffentlich aus dem Internet erreichbar. Für späteren öffentlichen Zugriff sollte ein Reverse-Proxy (z. B. Caddy/Nginx mit TLS) vorgeschaltet werden.
+- Der Backend-Port ist bewusst nur auf `127.0.0.1:3000` gebunden (`ports: "127.0.0.1:3000:3000"`), also **nicht** öffentlich aus dem Internet erreichbar.
 - MongoDB bleibt wie bisher ohne Port-Freigabe; sie ist nur innerhalb des Compose-Netzes erreichbar.
+
+## Reverse-Proxy mit TLS (Caddy)
+
+Öffentlicher HTTPS-Zugriff läuft über [Caddy](https://caddyserver.com/) als eigenen Compose-Service. Caddy besorgt automatisch TLS-Zertifikate von Let's Encrypt und erneuert sie laufend.
+
+### Voraussetzungen
+
+- Eine Domain, deren **A-Record** (und optional AAAA-Record) auf die öffentliche IP des Hetzner-Servers zeigt.
+- Freigegebene Ports **80 und 443** (Hetzner Cloud Firewall: TCP 80, TCP 443, UDP 443 für HTTP/3).
+
+### Konfiguration
+
+`Caddyfile` (im Repo, Platzhalter aus Umgebungsvariable):
+
+```caddyfile
+{$CADDY_DOMAIN} {
+	reverse_proxy backend:3000
+}
+```
+
+Die Domain wird über die `.env` neben der `docker-compose.yml` gesetzt:
+
+```bash
+echo "CADDY_DOMAIN=api.example.com" >> .env
+```
+
+`.env` enthält damit `MONGO_PASSWORD` und `CADDY_DOMAIN` und bleibt ausgecheckt-frei (`chmod 600`).
+
+### Deployment
+
+```bash
+git pull
+docker compose up -d caddy
+docker compose logs -f caddy   # TLS-Ausstellung beobachten
+```
+
+Smoke-Test (öffentlich):
+
+```bash
+curl -s https://api.example.com/api/health
+curl -sI https://api.example.com/
+```
+
+### Sicherheits-Hinweise
+
+- MongoDB bleibt ohne Port-Freigabe und ist nur im Compose-Netz erreichbar.
+- Das Backend ist weiterhin auf `127.0.0.1:3000` gebunden; öffentlich kommt man nur über Caddy/TLS heran.
+- Caddy leitet automatisch HTTP→HTTPS weiter und aktiviert HTTP/2 sowie HTTP/3 (UDP 443).
+- Bei Test-Setups ohne Domain kann man Caddy stattdessen mit `caddy.localtest.me` oder einer internen Selbstsignierung betreiben – für Produktion ist aber eine echte Domain Pflicht, sonst schlägt die ACME-Ausstellung fehl.
 
 ### Backend-Entwicklung lokal
 
