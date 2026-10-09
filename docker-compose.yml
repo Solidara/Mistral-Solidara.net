@@ -31,5 +31,24 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
 
+  caddy:
+    image: caddy:2
+    container_name: solidara-caddy
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
 volumes:
   mongo-data:
+  caddy-data:
+  caddy-config:
