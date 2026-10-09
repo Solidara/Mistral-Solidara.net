@@ -28,27 +28,22 @@ services:
     environment:
       MONGODB_URI: mongodb://root:${MONGO_PASSWORD}@mongodb:27017/solidara?authSource=admin
       PORT: 3000
-    ports:
-      - "127.0.0.1:3000:3000"
-
-  caddy:
-    image: caddy:2
-    container_name: solidara-caddy
-    restart: unless-stopped
-    depends_on:
-      - backend
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    environment:
-      CADDY_DOMAIN: ${CADDY_DOMAIN}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+    networks:
+      - default
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_default"
+      - "traefik.http.routers.solidara-api.rule=Host(`${API_DOMAIN}`)"
+      - "traefik.http.routers.solidara-api.entrypoints=websecure"
+      - "traefik.http.routers.solidara-api.tls.certresolver=le"
+      - "traefik.http.services.solidara-api.loadbalancer.server.port=3000"
 
 volumes:
   mongo-data:
-  caddy-data:
-  caddy-config:
+
+networks:
+  traefik:
+    external: true
+    name: traefik_default
+
