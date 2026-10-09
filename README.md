@@ -222,3 +222,39 @@ cp .env.example .env   # MONGODB_URI anpassen
 npm install
 npm run dev
 ```
+
+## Mehrsprachiges Content-Modell (Beiträge)
+
+WordPress ist nur ein Eingangskanal; MongoDB ist das Lead-System. Beiträge werden als Block-Baum gespeichert (Gutenberg-Raw wird serverseitig geparst), Übersetzungen sind separate Dokumente.
+
+### Collections
+
+- `posts` – ein Dokument pro Original-Beitrag. Unique-Index auf `slug` und (sparse) auf `sourceRef.wpPostId`. Enthält den geparsten Block-Baum (`blocks`), `originalLang` (Sprache des Autors, beliebig) und `contentHash` (SHA-256 **nur der übersetzbaren Textblöcke**).
+- `post_translations` – ein Dokument pro `(postId, lang)` (Unique-Index). `sourceContentHash` = Original-Hash zum Übersetzungszeitpunkt; weicht er vom aktuellen `contentHash` ab, gilt die Übersetzung als veraltet (`status: "stale"`) und wird beim nächsten Abruf neu erzeugt.
+
+### Block-Typen
+
+Der Parser (`backend/src/lib/gutenberg.js`) trennt übersetzbare von nicht übersetzbaren Inhalten:
+
+- `paragraph`, `heading`, `quote`, `list-item`: `translatable: true`, Inline-Markup (strong, Links) bleibt erhalten
+- `html` (z.B. Digistore-Scripte): `translatable: false`, wird 1:1 in `raw` übernommen
+- `shortcode`: 1:1 in `raw`; übersetzbare Attribute kommen aus der Registry `TRANSLATABLE_SHORTCODE_ATTRS` (z.B. `solidara_rating.question`) und landen in `translatableAttrs`
+
+Neue eigene Shortcodes brauchen nur einen Registry-Eintrag.
+
+### API
+
+Beitrag anlegen/aktualisieren (Upsert über wpPostId oder slug) – das WP-Plugin pusht hierher:
+
+    POST /api/posts
+    {"source":"wordpress","sourceRef":{"wpPostId":846},"slug":"startseite","originalLang":"de","rawContent":"..."}
+
+Original abrufen:
+
+    GET /api/posts/startseite
+
+Übersetzung abrufen (lazy): erste Anfrage erzeugt und speichert sie, weitere Anfragen sind reine DB-Reads:
+
+    GET /api/posts/startseite?lang=en
+
+Ohne konfigurierten MISTRAL_API_KEY antwortet die Übersetzung mit HTTP 503 und dem Original statt zu fehlschlagen. KI-Übersetzungen werden einzeln pro Sprache auf Abruf erzeugt und per Hash-Vergleich gecacht; unterstützt: DE/EN/ES/FR. Pay-as-you-go bleibt ausgeschaltet – ohne Key entstehen keine API-Kosten.

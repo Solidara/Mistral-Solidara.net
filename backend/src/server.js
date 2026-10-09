@@ -2,11 +2,13 @@ import "dotenv/config";
 import express from "express";
 import mongoose from "mongoose";
 import { pingRouter } from "./routes/ping.js";
+import { postsRouter } from "./routes/posts.js";
 
 const app = express();
 app.use(express.json());
 
 app.use("/api", pingRouter);
+app.use("/api", postsRouter);
 
 app.get("/", (_req, res) => {
   res.json({ service: "solidara-backend", version: "0.1.0" });
