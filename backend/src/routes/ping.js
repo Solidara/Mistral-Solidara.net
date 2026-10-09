@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { Ping } from "../models/ping.js";
+import { requireApiKey } from "../middleware/apiKey.js";
 
 export const pingRouter = Router();
 
@@ -12,7 +13,7 @@ pingRouter.get("/health", async (_req, res, next) => {
   }
 });
 
-pingRouter.post("/pings", async (req, res, next) => {
+pingRouter.post("/pings", requireApiKey, async (req, res, next) => {
   try {
     const { name, message } = req.body ?? {};
     if (typeof name !== "string" || name.length === 0) {

@@ -28,6 +28,7 @@ services:
     environment:
       MONGODB_URI: mongodb://root:${MONGO_PASSWORD}@mongodb:27017/solidara?authSource=admin
       PORT: 3000
+      API_KEY: ${API_KEY:-}
     networks:
       - default
       - traefik

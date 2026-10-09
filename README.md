@@ -258,3 +258,63 @@ Original abrufen:
     GET /api/posts/startseite?lang=en
 
 Ohne konfigurierten MISTRAL_API_KEY antwortet die Übersetzung mit HTTP 503 und dem Original statt zu fehlschlagen. KI-Übersetzungen werden einzeln pro Sprache auf Abruf erzeugt und per Hash-Vergleich gecacht; unterstützt: DE/EN/ES/FR. Pay-as-you-go bleibt ausgeschaltet – ohne Key entstehen keine API-Kosten.
+
+## API-Key-Schutz für schreibende Endpunkte
+
+Alle schreibenden Endpunkte (`POST /api/posts`, `POST /api/pings`) sind durch eine API-Key-Middleware geschützt, sobald `API_KEY` gesetzt ist:
+
+- Übergabe per `Authorization: Bearer <key>` oder `X-API-Key: <key>`-Header
+- Lese-Endpunkte (`GET`) sowie `/api/health` und `/` bleiben offen
+- Ist `API_KEY` nicht gesetzt, läuft die API im offenen Modus (für lokale Entwicklung)
+- Vergleich erfolgt timing-safe (`timingSafeEqual`), um Timing-Angriffe zu erschweren
+
+Key generieren und in der `.env` neben der `docker-compose.yml` ablegen:
+
+```bash
+openssl rand -base64 32
+echo "API_KEY=<generierter-key>" >> .env
+```
+
+Danach den Backend-Service neu starten:
+
+```bash
+docker compose up -d backend
+```
+
+Test:
+
+```bash
+curl -s -X POST https://api.kontaktoo.com/api/posts \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+```
+
+Ohne oder mit falschem Key antwortet die API mit HTTP 401 `{"error":"unauthorized"}`.
+
+## WordPress-Push-Plugin
+
+Das Plugin `wordpress-plugin/solidara-push.php` pusht veröffentlichte Beiträge automatisch als Gutenberg-Rohinhalt an `POST /api/posts`, sobald sie gespeichert/genehmigt werden (Hook: `save_post_post`, nur bei `post_status: publish`).
+
+Payload pro Beitrag:
+
+- `source: "wordpress"`, `sourceRef.wpPostId`, `slug` (WP-Post-Name), `originalLang: "de"` (konfigurierbar)
+- `rawContent` = unveränderter Gutenberg-Inhalt (`post_content`) – das Backend parst die Blöcke selbst
+
+Installation auf dem Hetzner-Server (WP-Installation unter `kontaktoo.com`):
+
+```bash
+# Plugin ins WP-Plugin-Verzeichnis kopieren
+cp wordpress-plugin/solidara-push.php /srv/wp/wp-content/plugins/
+
+# API-Key in der wp-config.php setzen:
+# define('SOLIDARA_PUSH_API_KEY', '<generierter-key>');
+```
+
+Konfiguration über Konstanten in der `wp-config.php`:
+
+- `SOLIDARA_PUSH_API_KEY` (Pflicht) – derselbe Key wie `API_KEY` im Backend
+- `SOLIDARA_PUSH_ENDPOINT` (optional) – überschreibt `https://api.kontaktoo.com/api/posts` (z.B. für Tests)
+
+Fehler (Timeouts, 4xx/5xx) werden ins PHP-Error-Log geschrieben (`solidara-push: ...`) – das Plugin bricht den WP-Speichervorgang niemals ab.
+
