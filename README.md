@@ -164,8 +164,55 @@ curl -s http://localhost:3000/api/pings
 
 ### Sicherheits-Hinweise
 
-- Der Backend-Port ist bewusst nur auf `127.0.0.1:3000` gebunden (`ports: "127.0.0.1:3000:3000"`), also **nicht** öffentlich aus dem Internet erreichbar. Für späteren öffentlichen Zugriff sollte ein Reverse-Proxy (z. B. Caddy/Nginx mit TLS) vorgeschaltet werden.
+- Der Backend-Container veröffentlicht keine eigenen Ports mehr; öffentlicher Zugriff läuft ausschließlich über den bestehenden Traefik-Reverse-Proxy mit TLS.
 - MongoDB bleibt wie bisher ohne Port-Freigabe; sie ist nur innerhalb des Compose-Netzes erreichbar.
+
+## Öffentlicher Zugriff über Traefik (TLS)
+
+Auf dem Hetzner-Server läuft bereits **Traefik v3** (`/srv/traefik`) als zentraler Reverse-Proxy für `kontaktoo.com` (WordPress) und terminiert TLS für Port 80/443. Das Backend bindet daher keine eigenen Ports und keine eigenen Zertifikate, sondern wird per Docker-Labels in Traefik eingebunden.
+
+### Traefik-Einbindung (im Repo)
+
+Der `backend`-Service in der `docker-compose.yml`:
+
+- tritt dem externen Netz `traefik_default` bei (`networks: traefik`, external), damit der Traefik-Container ihn erreichen kann
+- hat `traefik.docker.network=traefik_default` (Traefik wählt sonst ggf. das falsche Netz)
+- veröffentlicht sich selbst als Router: `Host(`${API_DOMAIN}`)` am Entrypoint `websecure` mit dem Cert-Resolver `le` (TLS-01-Challenge, Let's Encrypt)
+- exposes intern Port 3000 via `loadbalancer.server.port`
+
+Traefik liest die Labels über den Docker-Provider (Docker-Socket ist im Traefik-Container eingebunden) – nach `docker compose up -d backend` ist die API automatisch erreichbar, ohne Traefik neu zu starten.
+
+### Konfiguration
+
+Die API-Domain wird über die `.env` neben der `docker-compose.yml` gesetzt:
+
+```bash
+echo "API_DOMAIN=api.kontaktoo.com" >> .env
+```
+
+`.env` enthält damit `MONGO_PASSWORD` und `API_DOMAIN` und bleibt ausgecheckt-frei (`chmod 600`).
+
+### Deployment
+
+```bash
+git pull
+docker compose up -d backend
+curl -s https://api.kontaktoo.com/api/health
+```
+
+Ein veralteter `caddy`-Service aus einem früheren Setup sollte entfernt werden:
+
+```bash
+docker compose rm -sf caddy
+docker volume rm mistral-solidaranet_caddy-data mistral-solidaranet_caddy-config
+```
+
+### Sicherheits-Hinweise
+
+- MongoDB bleibt ohne Port-Freigabe und ist nur im Compose-Netz erreichbar.
+- Der Backend-Container veröffentlicht keine Host-Ports; öffentlich kommt man nur über Traefik/TLS heran.
+- Traefik erzwingt HTTPS am Entrypoint `websecure`; der Cert-Resolver `le` nutzt die TLS-01-Challenge (kein separater HTTP-Redirect nötig).
+- WordPress unter `kontaktoo.com` kann die API direkt via `https://api.kontaktoo.com` aufrufen.
 
 ### Backend-Entwicklung lokal
 

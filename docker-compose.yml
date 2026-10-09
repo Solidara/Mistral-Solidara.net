@@ -28,8 +28,22 @@ services:
     environment:
       MONGODB_URI: mongodb://root:${MONGO_PASSWORD}@mongodb:27017/solidara?authSource=admin
       PORT: 3000
-    ports:
-      - "127.0.0.1:3000:3000"
+    networks:
+      - default
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_default"
+      - "traefik.http.routers.solidara-api.rule=Host(`${API_DOMAIN}`)"
+      - "traefik.http.routers.solidara-api.entrypoints=websecure"
+      - "traefik.http.routers.solidara-api.tls.certresolver=le"
+      - "traefik.http.services.solidara-api.loadbalancer.server.port=3000"
 
 volumes:
   mongo-data:
+
+networks:
+  traefik:
+    external: true
+    name: traefik_default
+
