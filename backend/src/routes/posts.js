@@ -3,10 +3,11 @@ import { Post, PostTranslation } from "../models/post.js";
 import { parseBlocks } from "../lib/gutenberg.js";
 import { hashTranslatableBlocks } from "../lib/hash.js";
 import { isSupportedLang, translateBlocks } from "../lib/translate.js";
+import { requireApiKey } from "../middleware/apiKey.js";
 
 export const postsRouter = Router();
 
-postsRouter.post("/posts", async (req, res, next) => {
+postsRouter.post("/posts", requireApiKey, async (req, res, next) => {
   try {
     const { source, sourceRef, slug, originalLang, author, status, rawContent } = req.body ?? {};
     if (typeof slug !== "string" || slug.length === 0) {
