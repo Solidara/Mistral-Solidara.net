@@ -17,7 +17,7 @@ function solidara_push_settings()
 {
     return [
         'endpoint' => defined('SOLIDARA_PUSH_ENDPOINT') ? SOLIDARA_PUSH_ENDPOINT : 'https://api.kontaktoo.com/api/posts',
-        'api_key' => defined('SOLIDARA_PUSH_API_KEY') ? SOLIDARA_PUSH_API_KEY : getenv('SOLIDARA_PUSH_API_KEY') ?: '',
+        'api_key' => defined('SOLIDARA_PUSH_API_KEY') ? SOLIDARA_PUSH_API_KEY : (getenv('SOLIDARA_PUSH_API_KEY') ?: ''),
         'original_lang' => 'de',
     ];
 }
