@@ -130,3 +130,48 @@ docker compose down
 ```
 
 > **Achtung:** `docker compose down -v` löscht das Named Volume und damit alle Daten.
+
+## Backend deployen
+
+Das Express-Backend (`backend/`) läuft als zweiter Service in derselben `docker-compose.yml` im selben Netz wie MongoDB.
+
+### Erst-Deployment auf dem Hetzner-Server
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+Der Backend-Container wartet auf den MongoDB-Healthcheck (`depends_on: condition: service_healthy`) und verbindet sich dann intern über `mongodb://root:${MONGO_PASSWORD}@mongodb:27017/solidara?authSource=admin`.
+
+### Smoke-Test
+
+```bash
+# Service-Info
+curl -s http://localhost:3000/
+
+# DB-Verbindung prüfen
+curl -s http://localhost:3000/api/health
+
+# Beispiel-Datensatz anlegen
+curl -s -X POST http://localhost:3000/api/pings \
+  -H "Content-Type: application/json" \
+  -d '{"name":"erstes-ping","message":"hello"}'
+
+# Datensätze abrufen
+curl -s http://localhost:3000/api/pings
+```
+
+### Sicherheits-Hinweise
+
+- Der Backend-Port ist bewusst nur auf `127.0.0.1:3000` gebunden (`ports: "127.0.0.1:3000:3000"`), also **nicht** öffentlich aus dem Internet erreichbar. Für späteren öffentlichen Zugriff sollte ein Reverse-Proxy (z. B. Caddy/Nginx mit TLS) vorgeschaltet werden.
+- MongoDB bleibt wie bisher ohne Port-Freigabe; sie ist nur innerhalb des Compose-Netzes erreichbar.
+
+### Backend-Entwicklung lokal
+
+```bash
+cd backend
+cp .env.example .env   # MONGODB_URI anpassen
+npm install
+npm run dev
+```
