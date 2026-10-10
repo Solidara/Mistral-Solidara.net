@@ -281,6 +281,13 @@ Danach den Backend-Service neu starten:
 docker compose up -d backend
 ```
 
+`API_KEY` und `MONGO_PASSWORD` sind zwei getrennte Geheimnisse mit getrennten Zwecken und werden unabhängig voneinander generiert:
+
+- `MONGO_PASSWORD` – Passwort des MongoDB-Root-Users. Bleibt intern im Compose-Netz (in der `MONGODB_URI`), der Server verlässt es nie.
+- `API_KEY` – Schlüssel für schreibende API-Endpunkte. Erhält WordPress (in der `wp-config.php`) und ggf. andere externe Clients; er verlässt den Compose-Kontext.
+
+Vorteile der Trennung: Ist der API-Key geleakt, wird nur er rotiert (`.env` + `wp-config.php` anpassen, Backend neu starten) – die Datenbank bleibt unberührt. Eine `MONGO_PASSWORD`-Rotation ist aufwendiger, da der Root-User nur bei leerem Datenverzeichnis angelegt wird. Außerdem bekommt WordPress nach dem Prinzip der minimalen Rechte niemals Datenbank-Zugang.
+
 Test:
 
 ```bash
@@ -295,6 +302,8 @@ Ohne oder mit falschem Key antwortet die API mit HTTP 401 `{"error":"unauthorize
 ## WordPress-Push-Plugin
 
 Das Plugin `wordpress-plugin/solidara-push.php` pusht veröffentlichte Beiträge automatisch als Gutenberg-Rohinhalt an `POST /api/posts`, sobald sie gespeichert/genehmigt werden (Hook: `save_post_post`, nur bei `post_status: publish`).
+
+Voraussetzungen: PHP ≥ 7.4 (getestet mit PHP 8.3); das Plugin nutzt geklammerte Ternaries und ist damit auf allen aktuellen WordPress-Hosts lauffähig.
 
 Payload pro Beitrag:
 
@@ -317,4 +326,15 @@ Konfiguration über Konstanten in der `wp-config.php`:
 - `SOLIDARA_PUSH_ENDPOINT` (optional) – überschreibt `https://api.kontaktoo.com/api/posts` (z.B. für Tests)
 
 Fehler (Timeouts, 4xx/5xx) werden ins PHP-Error-Log geschrieben (`solidara-push: ...`) – das Plugin bricht den WP-Speichervorgang niemals ab.
+
+## Aktueller Deployment-Stand
+
+Auf dem Hetzner-Server (`solidara1`) produktiv und verifiziert:
+
+- MongoDB 8 (Compose, internes Netz, Named Volume) und Backend-Service über Traefik unter `https://api.kontaktoo.com` mit Let's-Encrypt-TLS
+- Request-Logging aktiv (`docker compose logs -f backend`)
+- API-Key-Schutz aktiv: Schreib-Endpunkte antworten ohne/falschen Key mit 401, mit Key mit 201
+- WordPress-Plugin installiert und aktiviert; erste Pushes auf `POST /api/posts` sind im Backend-Log angekommen
+
+Bereinigt werden kann noch der veraltete `caddy`-Service aus einem früheren Setup (siehe Abschnitt „Öffentlicher Zugriff über Traefik").
 
