@@ -292,6 +292,20 @@ curl -s -X POST https://api.kontaktoo.com/api/posts \
 
 Ohne oder mit falschem Key antwortet die API mit HTTP 401 `{"error":"unauthorized"}`.
 
+### Request-Logging
+
+Das Backend loggt jede eingehende Anfrage mit Zeitstempel, Methode, Pfad und Client-IP:
+
+```
+2026-10-10T08:20:01.195Z POST /api/pings from ::ffff:172.18.0.2
+```
+
+Praktisch für die Fehlerdiagnose (z.B. ob WP-Pushes tatsächlich ankommen):
+
+```bash
+docker compose logs -f backend
+```
+
 ## WordPress-Push-Plugin
 
 Das Plugin `wordpress-plugin/solidara-push.php` pusht veröffentlichte Beiträge automatisch als Gutenberg-Rohinhalt an `POST /api/posts`, sobald sie gespeichert/genehmigt werden (Hook: `save_post_post`, nur bei `post_status: publish`).
